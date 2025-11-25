@@ -7,7 +7,7 @@ import os
 import time
 
 # Sayfa yapılandırması
-st.set_page_config(page_title="Instagram Takipçi Tracker", page_icon="📱", layout="wide")
+st.set_page_config(page_title="Instagram Takipçi Tracker", page_icon="--", layout="wide")
 
 # Veritabanı fonksiyonları
 def init_db():
