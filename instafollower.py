@@ -3,6 +3,8 @@ import instaloader
 import sqlite3
 from datetime import datetime
 import pandas as pd
+import os
+import time
 
 # Sayfa yapılandırması
 st.set_page_config(page_title="Instagram Takipçi Tracker", page_icon="📱", layout="wide")
@@ -64,15 +66,13 @@ def get_profile_history(username):
     conn.close()
     return df
 
-# Instagram login fonksiyonu
+# Instagram loader oluşturma
 @st.cache_resource
-def get_instaloader_session(ig_username, ig_password):
-    try:
-        L = instaloader.Instaloader()
-        L.login(ig_username, ig_password)
-        return L, None
-    except Exception as e:
-        return None, str(e)
+def get_instaloader():
+    L = instaloader.Instaloader()
+    # Rate limiting için bekleme süreleri
+    L.max_connection_attempts = 3
+    return L
 
 # Veritabanını başlat
 init_db()
@@ -81,28 +81,20 @@ init_db()
 st.title("Instagram Takipçi Tracker")
 st.markdown("---")
 
-# Sidebar - Login
+# Sidebar
 with st.sidebar:
     st.header("Ayarlar")
     
-    # Instagram Login
-    with st.expander("Instagram Girişi", expanded=True):
-        ig_username = st.text_input("Instagram Kullanıcı Adı", key="ig_user")
-        ig_password = st.text_input("Instagram Şifre", type="password", key="ig_pass")
-        login_button = st.button("Giriş Yap")
-        
-        if login_button and ig_username and ig_password:
-            with st.spinner("Giriş yapılıyor..."):
-                L, error = get_instaloader_session(ig_username, ig_password)
-                if L:
-                    st.session_state['logged_in'] = True
-                    st.session_state['loader'] = L
-                    st.success("Giriş başarılı!")
-                else:
-                    st.error(f"Giriş başarısız: {error}")
-        
-        if 'logged_in' in st.session_state and st.session_state['logged_in']:
-            st.success("Giriş yapıldı")
+    st.info("""
+    **Not:** Instagram bot koruması nedeniyle:
+    - Çok sık sorgu yapmayın
+    - Aralarında 5-10 saniye bekleyin
+    - Büyük hesaplar için login gerekebilir
+    """)
+    
+    # Rate limiting ayarı
+    rate_limit = st.slider("Sorgular arası bekleme (saniye)", 5, 30, 10)
+    st.session_state['rate_limit'] = rate_limit
     
     st.markdown("---")
     page = st.radio("Sayfa Seç", ["Profil Sorgula", "Geçmiş Veriler"])
@@ -110,11 +102,6 @@ with st.sidebar:
 # Ana içerik
 if page == "Profil Sorgula":
     st.header("Instagram Profil Sorgula")
-    
-    # Login kontrolü
-    if 'logged_in' not in st.session_state or not st.session_state['logged_in']:
-        st.warning("Lütfen önce Instagram hesabınızla giriş yapın (Sol menüden)")
-        st.stop()
     
     col1, col2 = st.columns([3, 1])
     
@@ -127,10 +114,23 @@ if page == "Profil Sorgula":
         search_button = st.button("Sorgula", use_container_width=True)
     
     if search_button and username:
+        # Rate limiting kontrolü
+        if 'last_query_time' in st.session_state:
+            elapsed = time.time() - st.session_state['last_query_time']
+            if elapsed < st.session_state.get('rate_limit', 10):
+                wait_time = int(st.session_state.get('rate_limit', 10) - elapsed)
+                st.warning(f"Lütfen {wait_time} saniye bekleyin...")
+                st.stop()
+        
         with st.spinner(f'@{username} profili sorgulanıyor...'):
             try:
-                L = st.session_state['loader']
+                L = get_instaloader()
+                
+                # Profil bilgilerini çek (login olmadan)
                 profile = instaloader.Profile.from_username(L.context, username)
+                
+                # Son sorgu zamanını kaydet
+                st.session_state['last_query_time'] = time.time()
                 
                 # Veritabanına kaydet
                 save_profile(profile)
@@ -172,12 +172,14 @@ if page == "Profil Sorgula":
                 
             except instaloader.exceptions.ProfileNotExistsException:
                 st.error("Bu kullanıcı adı bulunamadı!")
-            except instaloader.exceptions.ConnectionException:
-                st.error("Bağlantı hatası! Lütfen tekrar giriş yapın.")
-            except instaloader.exceptions.TwoFactorAuthRequiredException:
-                st.error("İki faktörlü doğrulama gerekli!")
+            except instaloader.exceptions.ConnectionException as e:
+                st.error(f"Bağlantı hatası! Instagram geçici olarak engellemiş olabilir.")
+                st.info("Çözüm: Birkaç dakika bekleyin veya daha az sıklıkta sorgu yapın.")
+            except instaloader.exceptions.QueryReturnedBadRequestException:
+                st.error("Instagram sorgu limitine ulaştınız. Lütfen 15-30 dakika bekleyin.")
             except Exception as e:
                 st.error(f"Bir hata oluştu: {str(e)}")
+                st.info("Instagram bot koruması nedeniyle geçici olarak erişim engellenmiş olabilir.")
 
 elif page == "Geçmiş Veriler":
     st.header("Geçmiş Sorgular")
