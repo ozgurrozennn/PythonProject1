@@ -64,22 +64,17 @@ def get_profile_history(username):
     conn.close()
     return df
 
-# Instagram Scraper API - curl komutundan dönüştürülmüş
 def fetch_instagram_profile(username, api_key):
     try:
-        # curl komutundaki URL
         url = 'https://instagram-scraper.p.rapidapi.com/api/v1/users'
         
-        # Query parametresi
         querystring = {"query": username}
         
-        # Headers - curl'deki gibi
         headers = {
             'x-rapidapi-host': 'instagram-scraper.p.rapidapi.com',
             'x-rapidapi-key': api_key
         }
         
-        # GET request
         response = requests.get(url, headers=headers, params=querystring, timeout=20)
         
         st.info(f"API Response Status: {response.status_code}")
@@ -87,10 +82,8 @@ def fetch_instagram_profile(username, api_key):
         if response.status_code == 200:
             data = response.json()
             
-            # Response yapısını kontrol et
             st.write("API Response:", data)
             
-            # Genellikle users listesi içinde gelir
             if 'data' in data and 'users' in data['data'] and len(data['data']['users']) > 0:
                 user = data['data']['users'][0]
             elif 'users' in data and len(data['users']) > 0:
@@ -116,14 +109,11 @@ def fetch_instagram_profile(username, api_key):
     except Exception as e:
         return None, f"Hata: {str(e)}"
 
-# Veritabanını başlat
 init_db()
 
-# Streamlit UI
 st.title("Instagram Takipçi Tracker")
 st.markdown("---")
 
-# Sidebar
 with st.sidebar:
     st.header("API Ayarları")
     
@@ -134,28 +124,21 @@ with st.sidebar:
     )
     
     if api_key:
-        st.success("✅ API Key kaydedildi")
+        st.success("API Key kaydedildi")
         st.session_state['api_key'] = api_key
     
     st.markdown("---")
     
-    st.info("""
-    **Kullanılan API:**
-    
-    instagram-scraper.p.rapidapi.com
-    
-    Endpoint: /api/v1/users
-    """)
+    st.info("Kullanılan API: instagram-scraper.p.rapidapi.com")
     
     st.markdown("---")
     page = st.radio("Sayfa Seç", ["Profil Sorgula", "Geçmiş Veriler"])
 
-# Ana içerik
 if page == "Profil Sorgula":
     st.header("Instagram Profil Sorgula")
     
     if 'api_key' not in st.session_state or not st.session_state['api_key']:
-        st.warning("⚠️ Lütfen sol menüden API Key girin")
+        st.warning("Lütfen sol menüden API Key girin")
         st.stop()
     
     col1, col2 = st.columns([3, 1])
@@ -166,7 +149,7 @@ if page == "Profil Sorgula":
     with col2:
         st.write("")
         st.write("")
-        search_button = st.button("🔍 Sorgula", use_container_width=True)
+        search_button = st.button("Sorgula", use_container_width=True)
     
     if search_button and username:
         with st.spinner(f'@{username} profili sorgulanıyor...'):
@@ -175,9 +158,8 @@ if page == "Profil Sorgula":
             if profile_data:
                 save_profile_data(profile_data)
                 
-                st.success("✅ Profil bilgileri başarıyla kaydedildi!")
+                st.success("Profil bilgileri başarıyla kaydedildi!")
                 
-                # Profil bilgilerini göster
                 col1, col2, col3, col4 = st.columns(4)
                 
                 with col1:
@@ -195,7 +177,7 @@ if page == "Profil Sorgula":
                 
                 st.markdown("---")
                 
-                with st.expander("📋 Detaylı Profil Bilgileri", expanded=True):
+                with st.expander("Detaylı Profil Bilgileri", expanded=True):
                     col1, col2 = st.columns(2)
                     
                     with col1:
@@ -210,14 +192,7 @@ if page == "Profil Sorgula":
                             st.info(profile_data['biography'])
             
             else:
-                st.error(f"❌ Profil çekilemedi: {error}")
-                st.warning("""
-                **Kontrol Edin:**
-                
-                1. RapidAPI'da 'instagram-scraper' API'sine subscribe oldunuz mu?
-                2. API limitiniz doldu mu?
-                3. Kullanıcı adını doğru yazdınız mı?
-                """)
+                st.error(f"Profil çekilemedi: {error}")
 
 elif page == "Geçmiş Veriler":
     st.header("Geçmiş Sorgular")
@@ -266,28 +241,13 @@ elif page == "Geçmiş Veriler":
         
         csv = df_filtered.to_csv(index=False)
         st.download_button(
-            label="📥 CSV olarak İndir",
+            label="CSV olarak İndir",
             data=csv,
             file_name=f"instagram_data_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
             mime="text/csv"
         )
     else:
-        st.info("📭 Henüz sorgulama yapılmamış.")
+        st.info("Henüz sorgulama yapılmamış.")
 
 st.markdown("---")
-st.caption("Instagram Takipçi Tracker - instagram-scraper API")
-```
-
-**Curl komutundan Python'a dönüşüm:**
-```
-curl --request GET \
-  --url 'https://instagram-scraper.p.rapidapi.com/api/v1/users?query=nik' \
-  --header 'x-rapidapi-host: instagram-scraper.p.rapidapi.com' \
-  --header 'x-rapidapi-key: YOUR_KEY'
-url = 'https://instagram-scraper.p.rapidapi.com/api/v1/users'
-querystring = {"query": username}
-headers = {
-    'x-rapidapi-host': 'instagram-scraper.p.rapidapi.com',
-    'x-rapidapi-key': api_key
-}
-response = requests.get(url, headers=headers, params=querystring)
+st.caption("Instagram Takipçi Tracker")
