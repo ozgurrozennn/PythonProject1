@@ -40,10 +40,10 @@ def save_profile_data(data):
         data['followers'],
         data['following'],
         data['posts'],
-        data['full_name'],
-        data['biography'],
-        data['is_private'],
-        data['is_verified']
+        data.get('full_name', ''),
+        data.get('biography', ''),
+        data.get('is_private', False),
+        data.get('is_verified', False)
     ))
     conn.commit()
     conn.close()
@@ -64,41 +64,124 @@ def get_profile_history(username):
     conn.close()
     return df
 
-# Instagram profil verisi çekme (RapidAPI)
-def fetch_instagram_profile(username, api_key):
-    url = "https://instagram-scraper-api2.p.rapidapi.com/v1/info"
-    
-    querystring = {"username_or_id_or_url": username}
-    
-    headers = {
-        "X-RapidAPI-Key": api_key,
-        "X-RapidAPI-Host": "instagram-scraper-api2.p.rapidapi.com"
-    }
-    
+# Farklı API denemeleri
+def fetch_with_api1(username, api_key):
+    """Instagram Bulk Profile Data API"""
     try:
-        response = requests.get(url, headers=headers, params=querystring, timeout=10)
+        url = "https://instagram-bulk-profile-scrapper.p.rapidapi.com/clients/api/ig/ig_profile"
+        
+        querystring = {"ig": username, "response_type": "short"}
+        
+        headers = {
+            "X-RapidAPI-Key": api_key,
+            "X-RapidAPI-Host": "instagram-bulk-profile-scrapper.p.rapidapi.com"
+        }
+        
+        response = requests.get(url, headers=headers, params=querystring, timeout=15)
         
         if response.status_code == 200:
             data = response.json()
             
-            # Veriyi düzenle
-            profile_data = {
-                'username': data['data']['username'],
-                'followers': data['data']['follower_count'],
-                'following': data['data']['following_count'],
-                'posts': data['data']['media_count'],
-                'full_name': data['data']['full_name'],
-                'biography': data['data']['biography'],
-                'is_private': data['data']['is_private'],
-                'is_verified': data['data']['is_verified']
-            }
-            
-            return profile_data, None
+            return {
+                'username': data[0]['username'],
+                'followers': data[0]['follower_count'],
+                'following': data[0]['following_count'],
+                'posts': data[0]['media_count'],
+                'full_name': data[0].get('full_name', ''),
+                'biography': data[0].get('biography', ''),
+                'is_private': data[0].get('is_private', False),
+                'is_verified': data[0].get('is_verified', False)
+            }, None
         else:
-            return None, f"API Hatası: {response.status_code}"
-    
+            return None, f"API1 Hata: {response.status_code}"
     except Exception as e:
-        return None, str(e)
+        return None, f"API1 Exception: {str(e)}"
+
+def fetch_with_api2(username, api_key):
+    """Instagram Data API"""
+    try:
+        url = "https://instagram-data1.p.rapidapi.com/user/info"
+        
+        querystring = {"username": username}
+        
+        headers = {
+            "X-RapidAPI-Key": api_key,
+            "X-RapidAPI-Host": "instagram-data1.p.rapidapi.com"
+        }
+        
+        response = requests.get(url, headers=headers, params=querystring, timeout=15)
+        
+        if response.status_code == 200:
+            data = response.json()
+            
+            return {
+                'username': data['username'],
+                'followers': data['follower_count'],
+                'following': data['following_count'],
+                'posts': data['media_count'],
+                'full_name': data.get('full_name', ''),
+                'biography': data.get('biography', ''),
+                'is_private': data.get('is_private', False),
+                'is_verified': data.get('is_verified', False)
+            }, None
+        else:
+            return None, f"API2 Hata: {response.status_code}"
+    except Exception as e:
+        return None, f"API2 Exception: {str(e)}"
+
+def fetch_with_api3(username, api_key):
+    """Instagram API V1"""
+    try:
+        url = "https://instagram-api-20231.p.rapidapi.com/api/profile_info"
+        
+        querystring = {"username": username}
+        
+        headers = {
+            "X-RapidAPI-Key": api_key,
+            "X-RapidAPI-Host": "instagram-api-20231.p.rapidapi.com"
+        }
+        
+        response = requests.get(url, headers=headers, params=querystring, timeout=15)
+        
+        if response.status_code == 200:
+            data = response.json()
+            user = data['data']['user']
+            
+            return {
+                'username': user['username'],
+                'followers': user['edge_followed_by']['count'],
+                'following': user['edge_follow']['count'],
+                'posts': user['edge_owner_to_timeline_media']['count'],
+                'full_name': user.get('full_name', ''),
+                'biography': user.get('biography', ''),
+                'is_private': user.get('is_private', False),
+                'is_verified': user.get('is_verified', False)
+            }, None
+        else:
+            return None, f"API3 Hata: {response.status_code}"
+    except Exception as e:
+        return None, f"API3 Exception: {str(e)}"
+
+# Tüm API'leri dene
+def fetch_instagram_profile(username, api_key):
+    st.info("API 1 deneniyor...")
+    result, error = fetch_with_api1(username, api_key)
+    if result:
+        return result, None
+    
+    st.warning(f"API 1 başarısız: {error}")
+    st.info("API 2 deneniyor...")
+    result, error = fetch_with_api2(username, api_key)
+    if result:
+        return result, None
+    
+    st.warning(f"API 2 başarısız: {error}")
+    st.info("API 3 deneniyor...")
+    result, error = fetch_with_api3(username, api_key)
+    if result:
+        return result, None
+    
+    return None, f"Tüm API'ler başarısız"
 
 # Veritabanını başlat
 init_db()
@@ -111,20 +194,20 @@ st.markdown("---")
 with st.sidebar:
     st.header("API Ayarları")
     
-    st.info("""
-    **RapidAPI Kullanımı:**
-    1. rapidapi.com'a üye olun
-    2. "Instagram Scraper API" ara
-    3. API Key'inizi buraya girin
-    
-    Ücretsiz plan: 100 istek/ay
-    """)
-    
-    api_key = st.text_input("RapidAPI Key:", type="password")
+    api_key = st.text_input("RapidAPI Key:", value="c7bc53f7afmshe7f072a01c54e07p1fe6d5jsn21d488701f1f", type="password")
     
     if api_key:
         st.success("API Key kaydedildi")
         st.session_state['api_key'] = api_key
+    
+    st.info("""
+    **Denenen API'ler:**
+    1. Instagram Bulk Profile Scrapper
+    2. Instagram Data API
+    3. Instagram API V1
+    
+    Biri çalışmazsa diğerleri denenir.
+    """)
     
     st.markdown("---")
     page = st.radio("Sayfa Seç", ["Profil Sorgula", "Geçmiş Veriler"])
@@ -133,23 +216,14 @@ with st.sidebar:
 if page == "Profil Sorgula":
     st.header("Instagram Profil Sorgula")
     
-    # API Key kontrolü
     if 'api_key' not in st.session_state or not st.session_state['api_key']:
-        st.warning("Lütfen sol menüden RapidAPI Key'inizi girin")
-        st.info("""
-        **Nasıl API Key alınır?**
-        1. https://rapidapi.com adresine gidin
-        2. Üye olun (ücretsiz)
-        3. "Instagram Scraper API" arayın
-        4. Subscribe olun (Free plan seçin)
-        5. API Key'inizi kopyalayın
-        """)
+        st.warning("Lütfen sol menüden API Key girin")
         st.stop()
     
     col1, col2 = st.columns([3, 1])
     
     with col1:
-        username = st.text_input("Instagram kullanıcı adını girin:", placeholder="örn: cristiano")
+        username = st.text_input("Instagram kullanıcı adını girin:", placeholder="cristiano")
     
     with col2:
         st.write("")
@@ -161,10 +235,9 @@ if page == "Profil Sorgula":
             profile_data, error = fetch_instagram_profile(username, st.session_state['api_key'])
             
             if profile_data:
-                # Veritabanına kaydet
                 save_profile_data(profile_data)
                 
-                st.success("Profil bilgileri başarıyla kaydedildi!")
+                st.success("✅ Profil bilgileri başarıyla kaydedildi!")
                 
                 # Profil bilgilerini göster
                 col1, col2, col3, col4 = st.columns(4)
@@ -184,7 +257,6 @@ if page == "Profil Sorgula":
                 
                 st.markdown("---")
                 
-                # Detaylı bilgiler
                 with st.expander("Detaylı Profil Bilgileri", expanded=True):
                     col1, col2 = st.columns(2)
                     
@@ -200,8 +272,8 @@ if page == "Profil Sorgula":
                             st.info(profile_data['biography'])
             
             else:
-                st.error(f"Hata: {error}")
-                st.info("API Key'inizi kontrol edin veya farklı bir kullanıcı adı deneyin")
+                st.error(f"❌ Hata: {error}")
+                st.warning("Hiçbir API çalışmadı. Manuel giriş önerilir.")
 
 elif page == "Geçmiş Veriler":
     st.header("Geçmiş Sorgular")
@@ -209,7 +281,6 @@ elif page == "Geçmiş Veriler":
     df = get_all_profiles()
     
     if not df.empty:
-        # İstatistikler
         col1, col2, col3 = st.columns(3)
         
         with col1:
@@ -225,7 +296,6 @@ elif page == "Geçmiş Veriler":
         
         st.markdown("---")
         
-        # Kullanıcı seçimi
         users = df['username'].unique().tolist()
         selected_user = st.selectbox("Kullanıcı Seç:", ["Tümü"] + users)
         
@@ -234,7 +304,6 @@ elif page == "Geçmiş Veriler":
             st.subheader(f"@{selected_user} Geçmişi")
             
             if len(df_filtered) > 1:
-                # Takipçi değişim grafiği
                 df_chart = df_filtered.copy()
                 df_chart['created_at'] = pd.to_datetime(df_chart['created_at'])
                 df_chart = df_chart.sort_values('created_at')
@@ -243,7 +312,6 @@ elif page == "Geçmiş Veriler":
         else:
             df_filtered = df
         
-        # Tablo gösterimi
         st.subheader("Sorgulanan Profiller")
         
         display_df = df_filtered[['username', 'followers', 'following', 'posts', 'is_verified', 'created_at']].copy()
@@ -252,7 +320,6 @@ elif page == "Geçmiş Veriler":
         
         st.dataframe(display_df, use_container_width=True, hide_index=True)
         
-        # CSV indirme
         csv = df_filtered.to_csv(index=False)
         st.download_button(
             label="CSV olarak İndir",
@@ -261,7 +328,7 @@ elif page == "Geçmiş Veriler":
             mime="text/csv"
         )
     else:
-        st.info("Henüz sorgulama yapılmamış. Profil sorgula sayfasından başlayın!")
+        st.info("Henüz sorgulama yapılmamış.")
 
 st.markdown("---")
-st.caption("Instagram Takipçi Tracker - RapidAPI ile geliştirildi")
+st.caption("Instagram Takipçi Tracker - Multi API")
