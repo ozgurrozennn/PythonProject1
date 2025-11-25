@@ -284,3 +284,10 @@ curl --request GET \
   --url 'https://instagram-scraper.p.rapidapi.com/api/v1/users?query=nik' \
   --header 'x-rapidapi-host: instagram-scraper.p.rapidapi.com' \
   --header 'x-rapidapi-key: YOUR_KEY'
+url = 'https://instagram-scraper.p.rapidapi.com/api/v1/users'
+querystring = {"query": username}
+headers = {
+    'x-rapidapi-host': 'instagram-scraper.p.rapidapi.com',
+    'x-rapidapi-key': api_key
+}
+response = requests.get(url, headers=headers, params=querystring)
