@@ -1,13 +1,11 @@
 import streamlit as st
-import instaloader
+import requests
 import sqlite3
 from datetime import datetime
 import pandas as pd
-import os
-import time
 
 # Sayfa yapılandırması
-st.set_page_config(page_title="Instagram Takipçi Tracker", page_icon="--", layout="wide")
+st.set_page_config(page_title="Instagram Takipçi Tracker", page_icon="📱", layout="wide")
 
 # Veritabanı fonksiyonları
 def init_db():
@@ -30,7 +28,7 @@ def init_db():
     conn.commit()
     conn.close()
 
-def save_profile(profile):
+def save_profile_data(data):
     conn = sqlite3.connect('instagram_data.db')
     cursor = conn.cursor()
     cursor.execute('''
@@ -38,14 +36,14 @@ def save_profile(profile):
     (username, followers, following, posts, full_name, biography, is_private, is_verified)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     ''', (
-        profile.username,
-        profile.followers,
-        profile.followees,
-        profile.mediacount,
-        profile.full_name,
-        profile.biography,
-        profile.is_private,
-        profile.is_verified
+        data['username'],
+        data['followers'],
+        data['following'],
+        data['posts'],
+        data['full_name'],
+        data['biography'],
+        data['is_private'],
+        data['is_verified']
     ))
     conn.commit()
     conn.close()
@@ -66,13 +64,41 @@ def get_profile_history(username):
     conn.close()
     return df
 
-# Instagram loader oluşturma
-@st.cache_resource
-def get_instaloader():
-    L = instaloader.Instaloader()
-    # Rate limiting için bekleme süreleri
-    L.max_connection_attempts = 3
-    return L
+# Instagram profil verisi çekme (RapidAPI)
+def fetch_instagram_profile(username, api_key):
+    url = "https://instagram-scraper-api2.p.rapidapi.com/v1/info"
+    
+    querystring = {"username_or_id_or_url": username}
+    
+    headers = {
+        "X-RapidAPI-Key": api_key,
+        "X-RapidAPI-Host": "instagram-scraper-api2.p.rapidapi.com"
+    }
+    
+    try:
+        response = requests.get(url, headers=headers, params=querystring, timeout=10)
+        
+        if response.status_code == 200:
+            data = response.json()
+            
+            # Veriyi düzenle
+            profile_data = {
+                'username': data['data']['username'],
+                'followers': data['data']['follower_count'],
+                'following': data['data']['following_count'],
+                'posts': data['data']['media_count'],
+                'full_name': data['data']['full_name'],
+                'biography': data['data']['biography'],
+                'is_private': data['data']['is_private'],
+                'is_verified': data['data']['is_verified']
+            }
+            
+            return profile_data, None
+        else:
+            return None, f"API Hatası: {response.status_code}"
+    
+    except Exception as e:
+        return None, str(e)
 
 # Veritabanını başlat
 init_db()
@@ -83,18 +109,22 @@ st.markdown("---")
 
 # Sidebar
 with st.sidebar:
-    st.header("Ayarlar")
+    st.header("API Ayarları")
     
     st.info("""
-    **Not:** Instagram bot koruması nedeniyle:
-    - Çok sık sorgu yapmayın
-    - Aralarında 5-10 saniye bekleyin
-    - Büyük hesaplar için login gerekebilir
+    **RapidAPI Kullanımı:**
+    1. rapidapi.com'a üye olun
+    2. "Instagram Scraper API" ara
+    3. API Key'inizi buraya girin
+    
+    Ücretsiz plan: 100 istek/ay
     """)
     
-    # Rate limiting ayarı
-    rate_limit = st.slider("Sorgular arası bekleme (saniye)", 5, 30, 10)
-    st.session_state['rate_limit'] = rate_limit
+    api_key = st.text_input("RapidAPI Key:", type="password")
+    
+    if api_key:
+        st.success("API Key kaydedildi")
+        st.session_state['api_key'] = api_key
     
     st.markdown("---")
     page = st.radio("Sayfa Seç", ["Profil Sorgula", "Geçmiş Veriler"])
@@ -102,6 +132,19 @@ with st.sidebar:
 # Ana içerik
 if page == "Profil Sorgula":
     st.header("Instagram Profil Sorgula")
+    
+    # API Key kontrolü
+    if 'api_key' not in st.session_state or not st.session_state['api_key']:
+        st.warning("Lütfen sol menüden RapidAPI Key'inizi girin")
+        st.info("""
+        **Nasıl API Key alınır?**
+        1. https://rapidapi.com adresine gidin
+        2. Üye olun (ücretsiz)
+        3. "Instagram Scraper API" arayın
+        4. Subscribe olun (Free plan seçin)
+        5. API Key'inizi kopyalayın
+        """)
+        st.stop()
     
     col1, col2 = st.columns([3, 1])
     
@@ -114,26 +157,12 @@ if page == "Profil Sorgula":
         search_button = st.button("Sorgula", use_container_width=True)
     
     if search_button and username:
-        # Rate limiting kontrolü
-        if 'last_query_time' in st.session_state:
-            elapsed = time.time() - st.session_state['last_query_time']
-            if elapsed < st.session_state.get('rate_limit', 10):
-                wait_time = int(st.session_state.get('rate_limit', 10) - elapsed)
-                st.warning(f"Lütfen {wait_time} saniye bekleyin...")
-                st.stop()
-        
         with st.spinner(f'@{username} profili sorgulanıyor...'):
-            try:
-                L = get_instaloader()
-                
-                # Profil bilgilerini çek (login olmadan)
-                profile = instaloader.Profile.from_username(L.context, username)
-                
-                # Son sorgu zamanını kaydet
-                st.session_state['last_query_time'] = time.time()
-                
+            profile_data, error = fetch_instagram_profile(username, st.session_state['api_key'])
+            
+            if profile_data:
                 # Veritabanına kaydet
-                save_profile(profile)
+                save_profile_data(profile_data)
                 
                 st.success("Profil bilgileri başarıyla kaydedildi!")
                 
@@ -141,16 +170,16 @@ if page == "Profil Sorgula":
                 col1, col2, col3, col4 = st.columns(4)
                 
                 with col1:
-                    st.metric("Takipçi", f"{profile.followers:,}")
+                    st.metric("Takipçi", f"{profile_data['followers']:,}")
                 
                 with col2:
-                    st.metric("Takip", f"{profile.followees:,}")
+                    st.metric("Takip", f"{profile_data['following']:,}")
                 
                 with col3:
-                    st.metric("Gönderi", f"{profile.mediacount:,}")
+                    st.metric("Gönderi", f"{profile_data['posts']:,}")
                 
                 with col4:
-                    engagement = (profile.followers / profile.mediacount) if profile.mediacount > 0 else 0
+                    engagement = (profile_data['followers'] / profile_data['posts']) if profile_data['posts'] > 0 else 0
                     st.metric("Ort. Etkileşim", f"{engagement:.0f}")
                 
                 st.markdown("---")
@@ -160,26 +189,19 @@ if page == "Profil Sorgula":
                     col1, col2 = st.columns(2)
                     
                     with col1:
-                        st.write(f"**Kullanıcı Adı:** @{profile.username}")
-                        st.write(f"**Tam Ad:** {profile.full_name}")
-                        st.write(f"**Özel Hesap:** {'Evet' if profile.is_private else 'Hayır'}")
-                        st.write(f"**Onaylı Hesap:** {'Evet' if profile.is_verified else 'Hayır'}")
+                        st.write(f"**Kullanıcı Adı:** @{profile_data['username']}")
+                        st.write(f"**Tam Ad:** {profile_data['full_name']}")
+                        st.write(f"**Özel Hesap:** {'Evet' if profile_data['is_private'] else 'Hayır'}")
+                        st.write(f"**Onaylı Hesap:** {'Evet' if profile_data['is_verified'] else 'Hayır'}")
                     
                     with col2:
-                        if profile.biography:
+                        if profile_data['biography']:
                             st.write(f"**Biyografi:**")
-                            st.info(profile.biography)
-                
-            except instaloader.exceptions.ProfileNotExistsException:
-                st.error("Bu kullanıcı adı bulunamadı!")
-            except instaloader.exceptions.ConnectionException as e:
-                st.error(f"Bağlantı hatası! Instagram geçici olarak engellemiş olabilir.")
-                st.info("Çözüm: Birkaç dakika bekleyin veya daha az sıklıkta sorgu yapın.")
-            except instaloader.exceptions.QueryReturnedBadRequestException:
-                st.error("Instagram sorgu limitine ulaştınız. Lütfen 15-30 dakika bekleyin.")
-            except Exception as e:
-                st.error(f"Bir hata oluştu: {str(e)}")
-                st.info("Instagram bot koruması nedeniyle geçici olarak erişim engellenmiş olabilir.")
+                            st.info(profile_data['biography'])
+            
+            else:
+                st.error(f"Hata: {error}")
+                st.info("API Key'inizi kontrol edin veya farklı bir kullanıcı adı deneyin")
 
 elif page == "Geçmiş Veriler":
     st.header("Geçmiş Sorgular")
@@ -242,4 +264,4 @@ elif page == "Geçmiş Veriler":
         st.info("Henüz sorgulama yapılmamış. Profil sorgula sayfasından başlayın!")
 
 st.markdown("---")
-st.caption("Instagram Takipçi Tracker - Streamlit ile geliştirildi")
+st.caption("Instagram Takipçi Tracker - RapidAPI ile geliştirildi")
