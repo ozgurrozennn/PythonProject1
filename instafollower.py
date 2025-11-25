@@ -3,6 +3,7 @@ import requests
 import sqlite3
 from datetime import datetime
 import pandas as pd
+import time
 
 # Sayfa yapılandırması
 st.set_page_config(page_title="Instagram Takipçi Tracker", page_icon="📱", layout="wide")
@@ -64,84 +65,90 @@ def get_profile_history(username):
     conn.close()
     return df
 
-# Farklı API denemeleri
-def fetch_with_api1(username, api_key):
-    """Instagram Bulk Profile Data API"""
+# Instagram Profile Scraper API (instagram-scraper-api2.p.rapidapi.com)
+def fetch_instagram_v1(username, api_key):
+    """İlk API denemesi"""
     try:
-        url = "https://instagram-bulk-profile-scrapper.p.rapidapi.com/clients/api/ig/ig_profile"
+        url = "https://instagram-scraper-api2.p.rapidapi.com/v1/info"
         
-        querystring = {"ig": username, "response_type": "short"}
+        querystring = {"username_or_id_or_url": username}
         
         headers = {
-            "X-RapidAPI-Key": api_key,
-            "X-RapidAPI-Host": "instagram-bulk-profile-scrapper.p.rapidapi.com"
+            "x-rapidapi-key": api_key,
+            "x-rapidapi-host": "instagram-scraper-api2.p.rapidapi.com"
         }
         
-        response = requests.get(url, headers=headers, params=querystring, timeout=15)
+        response = requests.get(url, headers=headers, params=querystring, timeout=20)
         
         if response.status_code == 200:
             data = response.json()
+            user = data['data']
             
             return {
-                'username': data[0]['username'],
-                'followers': data[0]['follower_count'],
-                'following': data[0]['following_count'],
-                'posts': data[0]['media_count'],
-                'full_name': data[0].get('full_name', ''),
-                'biography': data[0].get('biography', ''),
-                'is_private': data[0].get('is_private', False),
-                'is_verified': data[0].get('is_verified', False)
+                'username': user['username'],
+                'followers': user['follower_count'],
+                'following': user['following_count'],
+                'posts': user['media_count'],
+                'full_name': user.get('full_name', ''),
+                'biography': user.get('biography', ''),
+                'is_private': user.get('is_private', False),
+                'is_verified': user.get('is_verified', False)
             }, None
         else:
-            return None, f"API1 Hata: {response.status_code}"
+            return None, f"Hata {response.status_code}: {response.text[:100]}"
+    
     except Exception as e:
-        return None, f"API1 Exception: {str(e)}"
+        return None, str(e)
 
-def fetch_with_api2(username, api_key):
-    """Instagram Data API"""
+# Instagram Profile by username API
+def fetch_instagram_v2(username, api_key):
+    """İkinci API denemesi"""
     try:
-        url = "https://instagram-data1.p.rapidapi.com/user/info"
+        url = "https://instagram-profile1.p.rapidapi.com/getprofile"
         
-        querystring = {"username": username}
+        payload = {"username": username}
         
         headers = {
+            "content-type": "application/json",
             "X-RapidAPI-Key": api_key,
-            "X-RapidAPI-Host": "instagram-data1.p.rapidapi.com"
+            "X-RapidAPI-Host": "instagram-profile1.p.rapidapi.com"
         }
         
-        response = requests.get(url, headers=headers, params=querystring, timeout=15)
+        response = requests.post(url, json=payload, headers=headers, timeout=20)
         
         if response.status_code == 200:
             data = response.json()
             
             return {
                 'username': data['username'],
-                'followers': data['follower_count'],
-                'following': data['following_count'],
-                'posts': data['media_count'],
+                'followers': data['followers'],
+                'following': data['following'],
+                'posts': data['posts'],
                 'full_name': data.get('full_name', ''),
                 'biography': data.get('biography', ''),
                 'is_private': data.get('is_private', False),
                 'is_verified': data.get('is_verified', False)
             }, None
         else:
-            return None, f"API2 Hata: {response.status_code}"
+            return None, f"Hata {response.status_code}"
+    
     except Exception as e:
-        return None, f"API2 Exception: {str(e)}"
+        return None, str(e)
 
-def fetch_with_api3(username, api_key):
-    """Instagram API V1"""
+# Instagram Scraper 2024
+def fetch_instagram_v3(username, api_key):
+    """Üçüncü API denemesi"""
     try:
-        url = "https://instagram-api-20231.p.rapidapi.com/api/profile_info"
+        url = "https://instagram-scraper-20222.p.rapidapi.com/profile_info"
         
         querystring = {"username": username}
         
         headers = {
             "X-RapidAPI-Key": api_key,
-            "X-RapidAPI-Host": "instagram-api-20231.p.rapidapi.com"
+            "X-RapidAPI-Host": "instagram-scraper-20222.p.rapidapi.com"
         }
         
-        response = requests.get(url, headers=headers, params=querystring, timeout=15)
+        response = requests.get(url, headers=headers, params=querystring, timeout=20)
         
         if response.status_code == 200:
             data = response.json()
@@ -158,30 +165,72 @@ def fetch_with_api3(username, api_key):
                 'is_verified': user.get('is_verified', False)
             }, None
         else:
-            return None, f"API3 Hata: {response.status_code}"
+            return None, f"Hata {response.status_code}"
+    
     except Exception as e:
-        return None, f"API3 Exception: {str(e)}"
+        return None, str(e)
 
-# Tüm API'leri dene
+# Instagram Looter API
+def fetch_instagram_v4(username, api_key):
+    """Dördüncü API denemesi"""
+    try:
+        url = "https://instagram-looter2.p.rapidapi.com/user"
+        
+        querystring = {"username": username}
+        
+        headers = {
+            "X-RapidAPI-Key": api_key,
+            "X-RapidAPI-Host": "instagram-looter2.p.rapidapi.com"
+        }
+        
+        response = requests.get(url, headers=headers, params=querystring, timeout=20)
+        
+        if response.status_code == 200:
+            data = response.json()
+            
+            return {
+                'username': data['username'],
+                'followers': data['followerCount'],
+                'following': data['followingCount'],
+                'posts': data['postsCount'],
+                'full_name': data.get('fullName', ''),
+                'biography': data.get('biography', ''),
+                'is_private': data.get('isPrivate', False),
+                'is_verified': data.get('isVerified', False)
+            }, None
+        else:
+            return None, f"Hata {response.status_code}"
+    
+    except Exception as e:
+        return None, str(e)
+
+# Tüm API'leri sırayla dene
 def fetch_instagram_profile(username, api_key):
-    st.info("API 1 deneniyor...")
-    result, error = fetch_with_api1(username, api_key)
-    if result:
-        return result, None
+    apis = [
+        ("Instagram Scraper API v2", fetch_instagram_v1),
+        ("Instagram Profile API", fetch_instagram_v2),
+        ("Instagram Scraper 2024", fetch_instagram_v3),
+        ("Instagram Looter API", fetch_instagram_v4)
+    ]
     
-    st.warning(f"API 1 başarısız: {error}")
-    st.info("API 2 deneniyor...")
-    result, error = fetch_with_api2(username, api_key)
-    if result:
-        return result, None
+    progress_placeholder = st.empty()
     
-    st.warning(f"API 2 başarısız: {error}")
-    st.info("API 3 deneniyor...")
-    result, error = fetch_with_api3(username, api_key)
-    if result:
-        return result, None
+    for i, (api_name, api_func) in enumerate(apis):
+        progress_placeholder.info(f"🔄 {api_name} deneniyor... ({i+1}/{len(apis)})")
+        
+        result, error = api_func(username, api_key)
+        
+        if result:
+            progress_placeholder.success(f"✅ {api_name} başarılı!")
+            time.sleep(0.5)
+            progress_placeholder.empty()
+            return result, None
+        else:
+            progress_placeholder.warning(f"⚠️ {api_name} başarısız: {error}")
+            time.sleep(1)
     
-    return None, f"Tüm API'ler başarısız"
+    progress_placeholder.error("❌ Tüm API'ler başarısız oldu")
+    return None, "Tüm API'ler başarısız"
 
 # Veritabanını başlat
 init_db()
@@ -194,19 +243,27 @@ st.markdown("---")
 with st.sidebar:
     st.header("API Ayarları")
     
-    api_key = st.text_input("RapidAPI Key:", value="c7bc53f7afmshe7f072a01c54e07p1fe6d5jsn21d488701f1f", type="password")
+    api_key = st.text_input(
+        "RapidAPI Key:", 
+        value="c7bc53f7afmshe7f072a01c54e07p1fe6d5jsn21d488701f1f", 
+        type="password"
+    )
     
     if api_key:
-        st.success("API Key kaydedildi")
+        st.success("✅ API Key kaydedildi")
         st.session_state['api_key'] = api_key
     
-    st.info("""
-    **Denenen API'ler:**
-    1. Instagram Bulk Profile Scrapper
-    2. Instagram Data API
-    3. Instagram API V1
+    st.markdown("---")
     
-    Biri çalışmazsa diğerleri denenir.
+    st.info("""
+    **4 Farklı API denenir:**
+    
+    1️⃣ Instagram Scraper API v2
+    2️⃣ Instagram Profile API  
+    3️⃣ Instagram Scraper 2024
+    4️⃣ Instagram Looter API
+    
+    Biri çalışmazsa diğerine otomatik geçer.
     """)
     
     st.markdown("---")
@@ -217,7 +274,7 @@ if page == "Profil Sorgula":
     st.header("Instagram Profil Sorgula")
     
     if 'api_key' not in st.session_state or not st.session_state['api_key']:
-        st.warning("Lütfen sol menüden API Key girin")
+        st.warning("⚠️ Lütfen sol menüden API Key girin")
         st.stop()
     
     col1, col2 = st.columns([3, 1])
@@ -228,52 +285,58 @@ if page == "Profil Sorgula":
     with col2:
         st.write("")
         st.write("")
-        search_button = st.button("Sorgula", use_container_width=True)
+        search_button = st.button("🔍 Sorgula", use_container_width=True)
     
     if search_button and username:
-        with st.spinner(f'@{username} profili sorgulanıyor...'):
-            profile_data, error = fetch_instagram_profile(username, st.session_state['api_key'])
+        profile_data, error = fetch_instagram_profile(username, st.session_state['api_key'])
+        
+        if profile_data:
+            save_profile_data(profile_data)
             
-            if profile_data:
-                save_profile_data(profile_data)
-                
-                st.success("✅ Profil bilgileri başarıyla kaydedildi!")
-                
-                # Profil bilgilerini göster
-                col1, col2, col3, col4 = st.columns(4)
+            st.success("✅ Profil bilgileri başarıyla kaydedildi!")
+            
+            # Profil bilgilerini göster
+            col1, col2, col3, col4 = st.columns(4)
+            
+            with col1:
+                st.metric("Takipçi", f"{profile_data['followers']:,}")
+            
+            with col2:
+                st.metric("Takip", f"{profile_data['following']:,}")
+            
+            with col3:
+                st.metric("Gönderi", f"{profile_data['posts']:,}")
+            
+            with col4:
+                engagement = (profile_data['followers'] / profile_data['posts']) if profile_data['posts'] > 0 else 0
+                st.metric("Ort. Etkileşim", f"{engagement:.0f}")
+            
+            st.markdown("---")
+            
+            with st.expander("📋 Detaylı Profil Bilgileri", expanded=True):
+                col1, col2 = st.columns(2)
                 
                 with col1:
-                    st.metric("Takipçi", f"{profile_data['followers']:,}")
+                    st.write(f"**Kullanıcı Adı:** @{profile_data['username']}")
+                    st.write(f"**Tam Ad:** {profile_data['full_name']}")
+                    st.write(f"**Özel Hesap:** {'Evet' if profile_data['is_private'] else 'Hayır'}")
+                    st.write(f"**Onaylı Hesap:** {'Evet' if profile_data['is_verified'] else 'Hayır'}")
                 
                 with col2:
-                    st.metric("Takip", f"{profile_data['following']:,}")
-                
-                with col3:
-                    st.metric("Gönderi", f"{profile_data['posts']:,}")
-                
-                with col4:
-                    engagement = (profile_data['followers'] / profile_data['posts']) if profile_data['posts'] > 0 else 0
-                    st.metric("Ort. Etkileşim", f"{engagement:.0f}")
-                
-                st.markdown("---")
-                
-                with st.expander("Detaylı Profil Bilgileri", expanded=True):
-                    col1, col2 = st.columns(2)
-                    
-                    with col1:
-                        st.write(f"**Kullanıcı Adı:** @{profile_data['username']}")
-                        st.write(f"**Tam Ad:** {profile_data['full_name']}")
-                        st.write(f"**Özel Hesap:** {'Evet' if profile_data['is_private'] else 'Hayır'}")
-                        st.write(f"**Onaylı Hesap:** {'Evet' if profile_data['is_verified'] else 'Hayır'}")
-                    
-                    with col2:
-                        if profile_data['biography']:
-                            st.write(f"**Biyografi:**")
-                            st.info(profile_data['biography'])
+                    if profile_data['biography']:
+                        st.write(f"**Biyografi:**")
+                        st.info(profile_data['biography'])
+        
+        else:
+            st.error(f"❌ Profil çekilemedi: {error}")
+            st.warning("""
+            **Olası Çözümler:**
             
-            else:
-                st.error(f"❌ Hata: {error}")
-                st.warning("Hiçbir API çalışmadı. Manuel giriş önerilir.")
+            1. RapidAPI'da bu API'lere subscribe olduğunuzdan emin olun
+            2. API limitinizi kontrol edin
+            3. Farklı bir kullanıcı adı deneyin
+            4. Birkaç dakika bekleyip tekrar deneyin
+            """)
 
 elif page == "Geçmiş Veriler":
     st.header("Geçmiş Sorgular")
@@ -322,13 +385,13 @@ elif page == "Geçmiş Veriler":
         
         csv = df_filtered.to_csv(index=False)
         st.download_button(
-            label="CSV olarak İndir",
+            label="📥 CSV olarak İndir",
             data=csv,
             file_name=f"instagram_data_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
             mime="text/csv"
         )
     else:
-        st.info("Henüz sorgulama yapılmamış.")
+        st.info("📭 Henüz sorgulama yapılmamış.")
 
 st.markdown("---")
-st.caption("Instagram Takipçi Tracker - Multi API")
+st.caption("Instagram Takipçi Tracker - Multi API v2")
